@@ -101,7 +101,7 @@ class StockTrader:
 
         try:
 
-            # 1. Input Credentials and CAPTCHA
+            # Input Credentials and CAPTCHA
             self.driver.find_element(By.ID, LOGIN_ID_USERNAME).clear()
             self.driver.find_element(By.ID, LOGIN_ID_PASSWORD).clear()
 
@@ -109,7 +109,7 @@ class StockTrader:
             self.driver.find_element(By.ID, LOGIN_ID_PASSWORD).send_keys(self.password)
             
             
-            # 2. Process CAPTCHA
+            # Process CAPTCHA
             # NOTE: Assuming process_and_solve_captcha now accepts just driver and xpath, 
             # and manages temporary files internally if necessary (or uses bytes).
             captcha_text = process_and_solve_captcha(self.driver, CAPTCHA_IMAGE) 
@@ -121,14 +121,14 @@ class StockTrader:
             
             log("Credentials and CAPTCHA entered.")
             
-            # 3. Click Login
+            # Click Login
             self.driver.find_element(By.XPATH, LOGIN_BUTTON_XPATH).click()
             log("Attempted login. Waiting for dashboard load (10s)...")
             
-            # 4. wait for the page to redirect to dashboard.
+            # wait for the page to redirect to dashboard.
             time.sleep(10)
             
-            # 5. TEST IF LOGGED IN
+            # TEST IF LOGGED IN
             self.driver.find_element(By.XPATH, OPEN_MODAL_BUTTON_XPATH)
             
             
@@ -153,23 +153,23 @@ class StockTrader:
             return
 
         try:
-            # 1. Open the trade modal (the button must be present after login)
+            # Open the trade modal (the button must be present after login)
             self.driver.find_element(By.XPATH, OPEN_MODAL_BUTTON_XPATH).click()
             
-            # 2. Select Trade Direction (Buy/Sell)
+            # Select Trade Direction (Buy/Sell)
             direction = trade_data['Direction']
             direction_xpath_key = "BUY_BUTTON" if direction == "Buy" else "SELL_BUTTON"
             self._find_modal_element(direction_xpath_key).click()
             log(f"Direction set to: {direction}", trade_name)
 
-            # 3. Search Stock Name and Select
+            # Search Stock Name and Select
             search_input = self._find_modal_element("SEARCH_INPUT")
             search_input.send_keys(trade_data['Name'])
             time.sleep(0.5) 
             search_input.send_keys(Keys.ENTER)
             log(f"Stock '{trade_data['Name']}' selected.", trade_name)
 
-            # 4. Set Volume
+            # Set Volume
             volume = trade_data['Volume']
             if volume == 0:
                 self._find_modal_element("MAX_VOLUME_CLICK").click()
@@ -182,7 +182,7 @@ class StockTrader:
             
             # time.sleep(0.5)            
             
-            # 5. Set Price
+            # Set Price
             price = trade_data['Price']
             if price == 0:
                 self._find_modal_element("LOCK_PRICE_BUTTON").click()
@@ -195,7 +195,7 @@ class StockTrader:
 
             # time.sleep(0.1)            
 
-            # 6. Draft order
+            # Draft order
             self._find_modal_element('DRAFT_SELECTION').click()
             
             self._find_modal_element('DRAFT_BUTTON').click()
@@ -208,7 +208,7 @@ class StockTrader:
         except Exception as e:
             log(f"An unexpected error occurred during trade execution: {e}", trade_name, is_error=True)
         finally:
-            # 7. Close Modal
+            # Close Modal
             try:
                 self._find_modal_element("CLOSE_MODAL_BUTTON").click()
                 log("Modal closed.", trade_name)
@@ -293,38 +293,31 @@ class StockTrader:
             
             print("--- %s seconds ---" % (time.time() - start_time))
             
-            # --- BULK EXECUTION ---
+            #  BULK EXECUTION 
             self.execute_drafts()
 
         except Exception as e:
             log(f"FATAL ERROR during trade loop: {e}", is_error=True)
 
         finally:
-            self.logout_and_quit()
-
-    def logout_and_quit(self):
-        if self.driver:
-            try:
-                log("Attempting final logout.", "SYSTEM")
-                time.sleep(5)
+            if self.driver:
+                try:
+                    log("Attempting final logout.", "SYSTEM")
+                    time.sleep(5)
                     
                     # Assuming LOGOUT_BUTTON is accessible from the dashboard
-                self.driver.find_element(By.XPATH, LOGOUT_BUTTON).click()
-            except:
-                log("WARNING: Could not find or click LOGOUT button.", "SYSTEM", is_error=True)
+                    self.driver.find_element(By.XPATH, LOGOUT_BUTTON).click()
+                except:
+                    log("WARNING: Could not find or click LOGOUT button.", "SYSTEM", is_error=True)
                 
-            time.sleep(5)
+                time.sleep(5)
                 
-            log("Quitting WebDriver.", "SYSTEM")
-            self.driver.quit()
+                log("Quitting WebDriver.", "SYSTEM")
+                self.driver.quit()
                 
 
 if __name__ == "__main__":
     trader = StockTrader()
-    try:
-        trader.run_workflow()
-    except Exception as e:
-        log("Uncaught Exception happened so i caught it.", "SYSTEM")
-        trader.logout_and_quit()
+    trader.run_workflow()
 
     

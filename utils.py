@@ -74,7 +74,7 @@ def read_trade_data(filename: str) -> List[Dict]:
     3. Neither is 0 (Sort Key = 0)
     """
     try:
-        # 1. Read CSV using pandas (much faster than csv module)
+        # Read CSV using pandas (much faster than csv module)
         df = pd.read_csv(filename)
         
         # Standardize column names (strip whitespace)
@@ -85,7 +85,7 @@ def read_trade_data(filename: str) -> List[Dict]:
              log("ERROR: Trade CSV is missing required columns (Name, Price, Volume, Direction).", is_error=True)
              return []
 
-        # 2. Vectorized Data Cleaning and Validation
+        # Vectorized Data Cleaning and Validation
         df['Name'] = df['Name'].astype(str).str.strip().str.upper()
         df['Direction'] = df['Direction'].astype(str).str.strip().str.title()
         
@@ -93,7 +93,7 @@ def read_trade_data(filename: str) -> List[Dict]:
         df['Price'] = pd.to_numeric(df['Price'], errors='coerce').fillna(0).astype(int)
         df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce').fillna(0).astype(int)
 
-        # 3. Filter for valid data only
+        # Filter for valid data only
         valid_directions = ["Buy", "Sell"]
         df_valid = df[df['Direction'].isin(valid_directions) & (df['Name'].str.len() > 0)].copy()
 
@@ -101,7 +101,7 @@ def read_trade_data(filename: str) -> List[Dict]:
         if invalid_count > 0:
             log(f"WARNING: Skipped {invalid_count} trade(s) due to invalid 'Direction' or empty 'Name'.", "SYSTEM", is_error=True)
         
-        # --- 4. IMPLEMENT CUSTOM SORTING LOGIC ---
+        #  4. IMPLEMENT CUSTOM SORTING LOGIC 
         
         # Calculate a numerical sort key: the sum of boolean masks (True=1, False=0)
         is_price_zero = df_valid['Price'] == 0
@@ -112,7 +112,7 @@ def read_trade_data(filename: str) -> List[Dict]:
         # Sort the trades: highest Sort_Key first (descending). Use Name as secondary stability sort.
         df_sorted = df_valid.sort_values(by=['Sort_Key', 'Name'], ascending=[False, True])
         
-        # 5. Convert the cleaned, validated, and sorted DataFrame back to a list of dictionaries
+        # Convert the cleaned, validated, and sorted DataFrame back to a list of dictionaries
         trades = df_sorted[required_cols].to_dict('records')
 
         log(f"Successfully loaded and sorted {len(trades)} trade(s) using pandas.", "SYSTEM")
