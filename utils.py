@@ -11,21 +11,34 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from easyocr import Reader
-
-
-
 # Import configuration constants
 from config import TARGET_URL, TEMP_IMAGE_FILE
 
 
+# Define the log file name
+LOG_FILE_NAME = "bot_log.txt"
+
 def log(message: str, trade_name: str = "SYSTEM", is_error: bool = False):
-    """Prints a timestamped message."""
-    timestamp = time.strftime('%H:%M:%S')
+    """Prints and writes a timestamped message to a log file."""
+    # Use YYYY-MM-DD HH:MM:SS format for better sorting and tracking
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     output = f"[{timestamp}][{trade_name}] {message}"
+
+    # Write to log file (CRITICAL for scheduled tasks)
+    try:
+        # Use 'a' mode to append to the file, ensuring we don't overwrite history
+        with open(LOG_FILE_NAME, 'a', encoding='utf-8') as f:
+            f.write(output + '\n')
+    except Exception as e:
+        # If file writing fails, at least log to stderr (visible in Task Scheduler log)
+        print(f"FATAL LOGGING ERROR: Failed to write to {LOG_FILE_NAME}: {e}", file=sys.stderr)
+
+    # Print to console (for immediate feedback during manual/debug runs)
     if is_error:
         print(output, file=sys.stderr)
     else:
         print(output)
+        
 
 def setup_webdriver() -> Optional[webdriver.Chrome]:
     """Initializes and returns a configured Chrome WebDriver."""
