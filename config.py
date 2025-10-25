@@ -1,16 +1,36 @@
-
 import os
+import sys
 from typing import Final
 
-# --- Global Configuration ---
+#  Dynamic Path Resolution 
+def get_base_path():
+    """Get the absolute path to the directory containing the script or exe."""
+    if getattr(sys, 'frozen', False):
+        # Running as a bundled executable (e.g., via PyInstaller)
+        # sys.executable is the path to the .exe
+        return os.path.dirname(sys.executable)
+    else:
+        # Running as a .py script
+        # __file__ is the path to this config.py script
+        return os.path.dirname(os.path.abspath(__file__))
+
+# APP_BASE_PATH is the root folder where algotrader.exe will live
+APP_BASE_PATH: Final[str] = get_base_path()
+#  End Dynamic Path 
+
+
+#  Global Configuration 
 TARGET_URL: Final[str] = "https://app.pasargadtrader.ir/oauth/login/"
-TEMP_IMAGE_FILE: Final[str] = "temp_captcha.jpg"
+# Place the temporary captcha file in the same folder as the exe
+TEMP_IMAGE_FILE: Final[str] = os.path.join(APP_BASE_PATH, "temp_captcha.jpg")
 
-# --- File Paths ---
-CREDENTIALS_CSV: Final[str] = "credentials.csv"
-TRADES_CSV: Final[str] = "trades.csv"
 
-# --- XPaths/IDs ---
+# The .exe will look for these files in the *same directory* it is in.
+CREDENTIALS_CSV: Final[str] = os.path.join(APP_BASE_PATH, "credentials.csv")
+TRADES_CSV: Final[str] = os.path.join(APP_BASE_PATH, "trades.csv")
+
+
+#  XPaths/IDs 
 # Login Elements
 LOGIN_ID_USERNAME: Final[str] = "loginName"
 LOGIN_ID_PASSWORD: Final[str] = "field-password"
@@ -36,7 +56,7 @@ MODAL_XPATHS_RELATIVE: Final[dict[str, str]] = {
     "PRICE_INPUT": "./app-order-modal/div[2]/div/div[2]/div/div/div[2]/div[1]/div/div[2]/div/input",
     "DRAFT_SELECTION": './app-order-modal/div[2]/div/div[2]/div/div/div[4]/div/div/input',
     "DRAFT_BUTTON": './app-order-modal/div[2]/div/div[2]/div/div/div[4]/button/span'
-    
+
 }
 
 BULK_SELECTION_BUTTON = '/html/body/app-root/app-pages/div/app-dashboard/div/div/div/app-dashboard-pages/div/div/div[2]/app-order-tabs/div/div/div[2]/div/app-draft-orders/p-table/div/table/thead/tr/th[2]/div/input'
