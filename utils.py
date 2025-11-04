@@ -88,7 +88,7 @@ def read_trade_data(filename: str) -> List[Dict]:
     """
     try:
         # Read CSV using pandas (much faster than csv module)
-        df = pd.read_csv(filename)
+        df = pd.read_csv(filename, encoding='utf-8')
         
         # Standardize column names (strip whitespace)
         df.columns = [col.strip() for col in df.columns]
