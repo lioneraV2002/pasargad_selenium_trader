@@ -5,17 +5,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from datetime import datetime, time as dt_time, timedelta 
-
-
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # Import utilities and configuration
-from utils import log, setup_webdriver, read_credentials, read_trade_data, process_and_solve_captcha
+from utils import log, setup_webdriver, read_trade_data, process_and_solve_captcha
 from config import (
-    TARGET_URL, CREDENTIALS_CSV, TRADES_CSV, 
-    LOGIN_ID_USERNAME, LOGIN_ID_PASSWORD, CAPTCHA_IMAGE, CAPTCHA_INPUT,
-    LOGIN_BUTTON_XPATH, OPEN_MODAL_BUTTON_XPATH, SEQUENTIAL_MODAL_BASE_XPATH,
-    MODAL_XPATHS_RELATIVE, BULK_SELECTION_BUTTON, BULK_ORDER_AND_REMOVE,
-    DRAFTS_SECTION_TAB, LOGOUT_BUTTON
+    TARGET_URL, LOGIN_ID_USERNAME, LOGIN_ID_PASSWORD, CAPTCHA_IMAGE,
+    CAPTCHA_INPUT, LOGIN_BUTTON_XPATH, OPEN_MODAL_BUTTON_XPATH, SEQUENTIAL_MODAL_BASE_XPATH,
+    MODAL_XPATHS_RELATIVE, BULK_SELECTION_BUTTON, BULK_ORDER_AND_REMOVE, DRAFTS_SECTION_TAB,
+    LOGOUT_BUTTON, CLOSE_BUTTON_XPATH, MODAL_XPATH
 )
 
 
@@ -63,27 +63,25 @@ def wait_until_market_open(target_hour=8, target_minute=45):
 
 class StockTrader:
     """Manages the sequential, end-to-end trading automation process using a single WebDriver session."""
-    def __init__(self):
+    def __init__(self, username: str, password: str, log_tag: str):
         self.driver: Optional[webdriver.Chrome] = None  # Re-introduced single driver
         self.trades: List[Dict[str, Any]] = []
-        self.username: str = ""
-        self.password: str = ""
+        self.username: str = username
+        self.password: str = password        
+        # Use username as the primary log tag for easy multi-process tracking
+        self.log_tag: str = log_tag
 
     def initialize_data(self) -> bool:
-        """Loads trade instructions and credentials."""
-        self.trades = read_trade_data(TRADES_CSV)
-        if not self.trades:
-            log("No valid trades loaded. Initialization failed.", is_error=True)
-            return False
-
-        self.username, self.password = read_credentials(CREDENTIALS_CSV)
-        if not self.username or not self.password:
-            log("Credentials not loaded. Initialization failed.", is_error=True)
-            return False
-        
-        log(f"Loaded {len(self.trades)} trades and credentials successfully.", "SYSTEM")
-        return True
-
+            """Loads trade instructions using the username to find the correct file."""
+            # read trades related to username given
+            self.trades = read_trade_data(self.username)
+            if not self.trades:
+                log(f"No valid trades loaded for user {self.username}. Initialization failed.", self.log_tag, is_error=True)
+                return False
+            
+            log(f"Loaded {len(self.trades)} trades successfully.", self.log_tag)
+            return True
+    
     def _find_modal_element(self, xpath_key: str):
         """Helper to find an element within the specific modal."""
         if not self.driver:
@@ -155,6 +153,8 @@ class StockTrader:
         try:
             # Open the trade modal (the button must be present after login)
             self.driver.find_element(By.XPATH, OPEN_MODAL_BUTTON_XPATH).click()
+            time.sleep(0.5) 
+        
             
             # Select Trade Direction (Buy/Sell)
             direction = trade_data['Direction']
@@ -166,8 +166,10 @@ class StockTrader:
             search_input = self._find_modal_element("SEARCH_INPUT")
             search_input.send_keys(trade_data['Name'])
             time.sleep(0.5) 
+            
             search_input.send_keys(Keys.ENTER)
             log(f"Stock '{trade_data['Name']}' selected.", trade_name)
+            time.sleep(0.5) 
 
             # Set Volume
             volume = trade_data['Volume']
@@ -180,7 +182,7 @@ class StockTrader:
                 volume_input.send_keys(str(volume))
                 log(f"Custom volume entered: {volume}.", trade_name)
             
-            # time.sleep(0.5)            
+            # time.sleep(0.1)            
             
             # Set Price
             price = trade_data['Price']
@@ -211,6 +213,7 @@ class StockTrader:
             # Close Modal
             try:
                 self._find_modal_element("CLOSE_MODAL_BUTTON").click()
+                time.sleep(0.5)             
                 log("Modal closed.", trade_name)
             except:
                 log("WARNING: Failed to close the modal.", trade_name, is_error=True)
@@ -257,67 +260,118 @@ class StockTrader:
             
         
         
+    def check_and_close_password_modal(self):
+        """
+        Checks for the presence of the change password modal and closes it 
+        if it is present by clicking the close button.
+        """
+        
+        print("\nChecking for Change Password Modal...")
+
+        try:
+            if self.driver:
+                # Wait up to 1 seconds for the modal element to be present
+                modal_element = WebDriverWait(self.driver, 1).until(
+                    EC.presence_of_element_located((By.XPATH, MODAL_XPATH))
+                )
+                
+                print("Modal found. Attempting to close it.")
+                
+                try:
+                    # Wait up to 5 seconds for the close button to be clickable
+                    close_button = WebDriverWait(self.driver, 1).until(
+                        EC.element_to_be_clickable((By.XPATH, CLOSE_BUTTON_XPATH))
+                    )
+                    
+                    # Click the close button
+                    close_button.click()
+                    print("Successfully clicked the modal close button.")
+                    
+                    # Optional: Wait for the modal to disappear to confirm closure
+                    WebDriverWait(self.driver, 1).until(
+                        EC.invisibility_of_element_located((By.XPATH, MODAL_XPATH))
+                    )
+                    print("Modal successfully closed and disappeared.")
+                    
+                except TimeoutException:
+                    print("Error: Modal close button was not clickable within 1 seconds.")
+                except NoSuchElementException:
+                    print("Error: Modal element was present, but the close button was not found.")
+                    
+        except TimeoutException:
+            print("Modal not found within 1 seconds. Assuming it did not appear or has already been closed.")
+        except Exception as e:
+            print(f"An unexpected error occurred during modal check: {e}")
+    
+    
     def run_workflow(self):
         """The main orchestration method for the sequential trading workflow."""
+        log("Starting workflow.", self.log_tag)
+
         if not self.initialize_data():
             return
 
         self.driver = setup_webdriver() # Initialize the single driver
 
+        if not self.driver:
+            return
+
         self.driver.get(TARGET_URL)
-        log(f"Navigated to {TARGET_URL}.")
+        log(f"Navigated to {TARGET_URL}.", self.log_tag)
         
         time.sleep(5)
         
-        logged_in = self.login()
         
-        while not logged_in:
-            logged_in = self.login()
-                        
-        log("Login successful: Dashboard loaded.", "SYSTEM")
+        for attempt in range(3):
+            if self.login():
+                break
+            log(f"Login attempt {attempt + 1} failed. Retrying...", self.log_tag, is_error=True)
+            time.sleep(5)
+        else:
+            log("All login attempts failed. Exiting.", self.log_tag, is_error=True)
+            if self.driver: self.driver.quit()
+            return
+
+        log("Login successful: Dashboard loaded.", self.log_tag)
             
-        
         try:
-            log("Starting sequential trade execution loop.", "SYSTEM")
+            self.check_and_close_password_modal()
+        
+            log("Starting sequential trade draft creation loop.", self.log_tag)
 
             start_time = time.time()
 
             # Sequential loop replaces the ThreadPoolExecutor
             for i, trade in enumerate(self.trades):
-                log(f"--- Processing Trade {i + 1}/{len(self.trades)}: {trade['Name']} ---", "SYSTEM")
+                log(f"--- Processing Trade {i + 1}/{len(self.trades)}: {trade['Name']} ---", self.log_tag)
 
                 # Execute the trade and close the modal (all in one session)
                 self.create_draft(trade, i + 1)
 
-            log("All drafts created. waiting for the market to open.", "SYSTEM")
+            log("All drafts created. Waiting for the market to open.", self.log_tag)
             
-            print("--- %s seconds ---" % (time.time() - start_time))
+            log(f"Draft creation took: {(time.time() - start_time):.2f} seconds", self.log_tag)
             
-            #  BULK EXECUTION 
+            # BULK EXECUTION 
             self.execute_drafts()
 
         except Exception as e:
-            log(f"FATAL ERROR during trade loop: {e}", is_error=True)
+            log(f"FATAL ERROR during trade loop: {e}", self.log_tag, is_error=True)
 
         finally:
             if self.driver:
                 try:
-                    log("Attempting final logout.", "SYSTEM")
+                    log("Attempting final logout.", self.log_tag)
                     time.sleep(5)
-                    
-                    # Assuming LOGOUT_BUTTON is accessible from the dashboard
                     self.driver.find_element(By.XPATH, LOGOUT_BUTTON).click()
                 except:
-                    log("WARNING: Could not find or click LOGOUT button.", "SYSTEM", is_error=True)
+                    log("WARNING: Could not find or click LOGOUT button.", self.log_tag, is_error=True)
                 
                 time.sleep(5)
                 
-                log("Quitting WebDriver.", "SYSTEM")
-                self.driver.quit()
-                
-
-if __name__ == "__main__":
-    trader = StockTrader()
-    trader.run_workflow()
+                log("Quitting WebDriver.", self.log_tag)
+                self.driver.quit()                
 
     
+s = StockTrader('0150128401', 'Artemis1302@', 'user1')
+s.run_workflow()
