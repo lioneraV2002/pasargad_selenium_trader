@@ -40,7 +40,7 @@ REM We call the pyinstaller.exe from INSIDE the venv.
     --name "algotrader" ^
     --collect-all "easyocr" ^
     --collect-all "pandas" ^
-    stock_trader.py
+    orchestrator.py
 
 IF %ERRORLEVEL% NEQ 0 (
     echo ERROR: PyInstaller build failed.
