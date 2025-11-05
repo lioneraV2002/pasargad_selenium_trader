@@ -2,17 +2,16 @@ import pandas as pd
 import os
 import time
 import sys
-import csv
 import base64
-from typing import List, Dict, Optional, Tuple
-from urllib.parse import urljoin
 import requests
+from typing import Any, List, Dict, Optional
+from urllib.parse import urljoin
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from easyocr import Reader
 # Import configuration constants
-from config import TARGET_URL, TEMP_IMAGE_FILE
+from config import TARGET_URL, TEMP_IMAGE_FILE, TRADES_EXCEL, CREDENTIALS_EXCEL
 
 
 # Define the log file name
@@ -27,7 +26,7 @@ def log(message: str, trade_name: str = "SYSTEM", is_error: bool = False):
     # Write to log file (CRITICAL for scheduled tasks)
     try:
         # Use 'a' mode to append to the file, ensuring we don't overwrite history
-        with open(LOG_FILE_NAME, 'a', encoding='utf-8') as f:
+        with open(LOG_FILE_NAME, 'w', encoding='utf-8') as f:
             f.write(output + '\n')
     except Exception as e:
         # If file writing fails, at least log to stderr (visible in Task Scheduler log)
@@ -54,92 +53,94 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
         log(f"FATAL WebDriver Setup Error: {e}", is_error=True)
         return None
 
-def read_credentials(filename: str) -> Tuple[str, str]:
-    """Reads username and password from the first data row of the CSV file."""
+# Read all credentials from the first sheet of credentials.xlsx
+def read_credentials() -> List[Dict[str, str]]:
+    """
+    Reads multiple username/password pairs from the first sheet of the Excel file.
+    """
+    required_cols = ['username', 'password']
     try:
-        with open(filename, mode='r', newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            next(reader) # Skip header row
-            data = next(reader)
-            if len(data) >= 2:
-                return data[0].strip(), data[1].strip()
-            else:
-                log(f"ERROR: '{filename}' format is incorrect.", is_error=True)
-                return "", ""
-    except (FileNotFoundError, StopIteration):
-        log(f"ERROR: '{filename}' not found or empty.", is_error=True)
-        return "", ""
+        # Read the first sheet (or 'Sheet1' if it exists)
+        df = pd.read_excel(CREDENTIALS_EXCEL, sheet_name=0,
+                           dtype={required_cols[0]:str, 
+                                  required_cols[1]:str}).dropna() 
+
+        df.columns = [col.strip() for col in df.columns]
+
+        if not all(col in df.columns for col in required_cols):
+            log(f"ERROR: '{CREDENTIALS_EXCEL}' sheet is missing required columns.", is_error=True)
+            return []
+
+        credentials = df[required_cols].to_dict('records')
+        log(f"Successfully loaded {len(credentials)} sets of credentials from {CREDENTIALS_EXCEL}.", "SYSTEM")
+        return credentials
+
+    except FileNotFoundError:
+        log(f"ERROR: '{CREDENTIALS_EXCEL}' not found. Please create it.", is_error=True)
+        return []
     except Exception as e:
         log(f"An error occurred while reading credentials: {e}", is_error=True)
-        return "", ""
+        return []
 
 
-
-
-def read_trade_data(filename: str) -> List[Dict]:
+# Read trade data from a specific sheet in trades.xlsx
+def read_trade_data(username: str) -> List[Dict[str, Any]]:
     """
-    Reads, validates, and sorts trade data from the CSV file using pandas for superior speed
-    and efficiency.
+    Reads, validates, and sorts trade data from the sheet named after the username 
+    in the TRADES_EXCEL file.
+    """
+    # Use the username as the sheet name
+    sheet_name = username 
     
-    Sorting Priority:
-    1. Price=0 AND Volume=0 (Sort Key = 2)
-    2. Price=0 OR Volume=0 (Sort Key = 1)
-    3. Neither is 0 (Sort Key = 0)
-    """
     try:
-        # Read CSV using pandas (much faster than csv module)
-        df = pd.read_csv(filename, encoding='utf-8')
+        # Read the specific sheet
+        df = pd.read_excel(TRADES_EXCEL, sheet_name=sheet_name)
         
-        # Standardize column names (strip whitespace)
+        # ... (Validation, cleaning, and sorting logic remains the same)
         df.columns = [col.strip() for col in df.columns]
 
         required_cols = ['Name', 'Price', 'Volume', 'Direction']
         if not all(col in df.columns for col in required_cols):
-             log("ERROR: Trade CSV is missing required columns (Name, Price, Volume, Direction).", is_error=True)
+             log(f"ERROR: Trade sheet '{sheet_name}' is missing required columns.", is_error=True)
              return []
 
         # Vectorized Data Cleaning and Validation
         df['Name'] = df['Name'].astype(str).str.strip().str.upper()
         df['Direction'] = df['Direction'].astype(str).str.strip().str.title()
         
-        # Handle Price and Volume: Convert to numeric, coercing errors (like non-digit strings) to NaN, then filling NaN with 0.
         df['Price'] = pd.to_numeric(df['Price'], errors='coerce').fillna(0).astype(int)
         df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce').fillna(0).astype(int)
 
-        # Filter for valid data only
         valid_directions = ["Buy", "Sell"]
         df_valid = df[df['Direction'].isin(valid_directions) & (df['Name'].str.len() > 0)].copy()
 
         invalid_count = len(df) - len(df_valid)
         if invalid_count > 0:
-            log(f"WARNING: Skipped {invalid_count} trade(s) due to invalid 'Direction' or empty 'Name'.", "SYSTEM", is_error=True)
+            log(f"WARNING: Skipped {invalid_count} trade(s) in sheet '{sheet_name}'.", "SYSTEM", is_error=True)
         
-        #  4. IMPLEMENT CUSTOM SORTING LOGIC 
-        
-        # Calculate a numerical sort key: the sum of boolean masks (True=1, False=0)
+        # Sorting Logic
         is_price_zero = df_valid['Price'] == 0
         is_volume_zero = df_valid['Volume'] == 0
-        
         df_valid['Sort_Key'] = is_price_zero.astype(int) + is_volume_zero.astype(int)
-        
-        # Sort the trades: highest Sort_Key first (descending). Use Name as secondary stability sort.
         df_sorted = df_valid.sort_values(by=['Sort_Key', 'Name'], ascending=[False, True])
         
-        # Convert the cleaned, validated, and sorted DataFrame back to a list of dictionaries
         trades = df_sorted[required_cols].to_dict('records')
 
-        log(f"Successfully loaded and sorted {len(trades)} trade(s) using pandas.", "SYSTEM")
+        log(f"Successfully loaded and sorted {len(trades)} trade(s) from sheet '{sheet_name}'.", username)
         return trades
 
+    except ValueError as ve:
+        # Catch error if the sheet name is not found
+        log(f"ERROR: Trade sheet '{sheet_name}' not found in {TRADES_EXCEL}. Ensure sheet name matches username exactly. Error: {ve}", is_error=True)
+        return []
     except FileNotFoundError:
-        log(f"ERROR: '{filename}' not found. Please create it.", is_error=True)
+        log(f"ERROR: Trade file '{TRADES_EXCEL}' not found.", is_error=True)
         return []
     except Exception as e:
-        # Catch errors potentially from pandas not finding columns or files
-        log(f"An error occurred while reading {filename} with pandas: {e}", is_error=True)
+        log(f"An error occurred while reading trade data for {username}: {e}", is_error=True)
         return []
     
-
+    
 def ocr_captcha_image(filepath: str) -> str:
     """Uses easyocr to read text from the captcha image file."""
     try:
