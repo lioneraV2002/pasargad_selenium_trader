@@ -169,7 +169,7 @@ class StockTrader:
             
             search_input.send_keys(Keys.ENTER)
             log(f"Stock '{trade_data['Name']}' selected.", trade_name)
-            time.sleep(0.5) 
+            time.sleep(0.1) 
 
             # Set Volume
             volume = trade_data['Volume']
@@ -182,7 +182,7 @@ class StockTrader:
                 volume_input.send_keys(str(volume))
                 log(f"Custom volume entered: {volume}.", trade_name)
             
-            # time.sleep(0.1)            
+            time.sleep(0.1) 
             
             # Set Price
             price = trade_data['Price']
@@ -195,10 +195,12 @@ class StockTrader:
                 price_input.send_keys(str(price))
                 log(f"Custom price entered: {price}.", trade_name)
 
-            # time.sleep(0.1)            
+            time.sleep(0.1)            
 
             # Draft order
             self._find_modal_element('DRAFT_SELECTION').click()
+            
+            time.sleep(0.1) 
             
             self._find_modal_element('DRAFT_BUTTON').click()
             log(f"Order **Drafted** for {direction} {trade_data['Name']}.", trade_name)
@@ -213,7 +215,7 @@ class StockTrader:
             # Close Modal
             try:
                 self._find_modal_element("CLOSE_MODAL_BUTTON").click()
-                time.sleep(0.5)             
+                time.sleep(0.1)             
                 log("Modal closed.", trade_name)
             except:
                 log("WARNING: Failed to close the modal.", trade_name, is_error=True)
@@ -372,6 +374,4 @@ class StockTrader:
                 log("Quitting WebDriver.", self.log_tag)
                 self.driver.quit()                
 
-    
-s = StockTrader('0150128401', 'Artemis1302@', 'user1')
-s.run_workflow()
+
