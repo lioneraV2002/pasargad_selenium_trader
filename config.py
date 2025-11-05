@@ -26,8 +26,8 @@ TEMP_IMAGE_FILE: Final[str] = os.path.join(APP_BASE_PATH, "temp_captcha.jpg")
 
 
 # The .exe will look for these files in the *same directory* it is in.
-CREDENTIALS_CSV: Final[str] = os.path.join(APP_BASE_PATH, "credentials.csv")
-TRADES_CSV: Final[str] = os.path.join(APP_BASE_PATH, "trades.csv")
+CREDENTIALS_EXCEL: Final[str] = os.path.join(APP_BASE_PATH, "credentials.xlsx")
+TRADES_EXCEL: Final[str] = os.path.join(APP_BASE_PATH, "trades.xlsx")
 
 
 #  XPaths/IDs 
@@ -62,3 +62,8 @@ MODAL_XPATHS_RELATIVE: Final[dict[str, str]] = {
 BULK_SELECTION_BUTTON = '/html/body/app-root/app-pages/div/app-dashboard/div/div/div/app-dashboard-pages/div/div/div[2]/app-order-tabs/div/div/div[2]/div/app-draft-orders/p-table/div/table/thead/tr/th[2]/div/input'
 BULK_ORDER_AND_REMOVE = '/html/body/app-root/app-pages/div/app-dashboard/div/div/div/app-dashboard-pages/div/div/div[2]/app-order-tabs/div/div/div[2]/div/app-draft-orders/div/button[4]'
 DRAFTS_SECTION_TAB = '/html/body/app-root/app-pages/div/app-dashboard/div/div/div/app-dashboard-pages/div/div/div[2]/app-order-tabs/div/div/div[1]/ul/li[2]/a'
+
+# XPath for the change password modal container
+MODAL_XPATH = "/html/body/ngb-modal-window/div/div/app-change-password-modal"
+# XPath for the close button (the 'i' element inside the button)
+CLOSE_BUTTON_XPATH = "/html/body/ngb-modal-window/div/div/app-change-password-modal/div[1]/button/i"
