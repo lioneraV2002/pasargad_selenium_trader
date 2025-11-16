@@ -186,7 +186,7 @@ class StockTrader:
         
             search_input.send_keys(Keys.ENTER)
             log(f"Stock '{trade_data['Name']}' selected. Trade name: {trade_name}", self.log_tag)
-            time.sleep(0.1) 
+            time.sleep(1) 
 
             # Set Volume
             volume = trade_data['Volume']

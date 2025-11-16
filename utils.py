@@ -10,8 +10,10 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from easyocr import Reader
+from selenium.webdriver.chrome.service import Service as ChromeService 
+from webdriver_manager.chrome import ChromeDriverManager      
 # Import configuration constants
-from config import TARGET_URL, TEMP_IMAGE_FILE, TRADES_EXCEL, CREDENTIALS_EXCEL
+from config import TARGET_URL, TRADES_EXCEL, CREDENTIALS_EXCEL
 
 
 # Define the log file name
@@ -26,7 +28,7 @@ def log(message: str, trade_name: str = "SYSTEM", is_error: bool = False):
     # Write to log file (CRITICAL for scheduled tasks)
     try:
         # Use 'a' mode to append to the file, ensuring we don't overwrite history
-        with open(LOG_FILE_NAME, 'w', encoding='utf-8') as f:
+        with open(LOG_FILE_NAME, 'a', encoding='utf-8') as f:
             f.write(output + '\n')
     except Exception as e:
         # If file writing fails, at least log to stderr (visible in Task Scheduler log)
@@ -37,7 +39,7 @@ def log(message: str, trade_name: str = "SYSTEM", is_error: bool = False):
         print(output, file=sys.stderr)
     else:
         print(output)
-        
+
 
 def setup_webdriver() -> Optional[webdriver.Chrome]:
     """Initializes and returns a configured Chrome WebDriver."""
@@ -45,8 +47,20 @@ def setup_webdriver() -> Optional[webdriver.Chrome]:
     try:
         chrome_options = Options()
         chrome_options.add_argument("--start-maximized")
-                
-        driver = webdriver.Chrome(options=chrome_options)        
+        # Standard optimization arguments
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-dev-shm-usage") 
+        
+        # This line automatically downloads/finds the correct driver
+        # and passes its path to the Service object.
+        service = ChromeService(ChromeDriverManager().install())
+        
+        # Pass the service to the driver
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        
         
         return driver
     except WebDriverException as e:
@@ -141,12 +155,12 @@ def read_trade_data(username: str) -> List[Dict[str, Any]]:
         return []
     
     
-def ocr_captcha_image(filepath: str) -> str:
-    """Uses easyocr to read text from the captcha image file."""
+def ocr_captcha_image(image_bytes: bytes) -> str:
+    """Uses easyocr to read text from the captcha image bytes."""
     try:
         # Initialize Reader once (it's resource-intensive)
         reader = Reader(['en'])
-        result = reader.readtext(image=filepath, allowlist='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+        result = reader.readtext(image=image_bytes, allowlist='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
         # Filter results and combine text
         if result:
@@ -163,7 +177,7 @@ def ocr_captcha_image(filepath: str) -> str:
     
 
 def process_and_solve_captcha(driver, img_xpath: str) -> str:
-    """Downloads, saves, OCRs, and cleans up the CAPTCHA image."""
+    """Downloads, OCRs in-memory, and returns CAPTCHA text."""
     image_bytes = None
     try:
         captcha_img = driver.find_element("xpath", img_xpath)
@@ -186,11 +200,8 @@ def process_and_solve_captcha(driver, img_xpath: str) -> str:
             log("Image downloaded via requests.")
 
         if image_bytes:
-            with open(TEMP_IMAGE_FILE, "wb") as f:
-                f.write(image_bytes)
-            log(f"Captcha image SAVED to temporary file: {TEMP_IMAGE_FILE}")
-
-            captcha_text = ocr_captcha_image(TEMP_IMAGE_FILE)
+            # Pass bytes directly to OCR function
+            captcha_text = ocr_captcha_image(image_bytes)
             log(f"OCR Result: '{captcha_text}'")
             return captcha_text
 
@@ -198,9 +209,5 @@ def process_and_solve_captcha(driver, img_xpath: str) -> str:
         log(f"ERROR: Could not find Captcha image using XPath: {img_xpath}", is_error=True)
     except Exception as e:
         log(f"An unexpected error occurred during CAPTCHA processing: {e}", is_error=True)
-    finally:
-        if os.path.exists(TEMP_IMAGE_FILE):
-            os.remove(TEMP_IMAGE_FILE)
-            log(f"Cleaned up temporary file: {TEMP_IMAGE_FILE}")
-            
+
     return ""
