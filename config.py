@@ -21,9 +21,6 @@ APP_BASE_PATH: Final[str] = get_base_path()
 
 #  Global Configuration 
 TARGET_URL: Final[str] = "https://app.pasargadtrader.ir/oauth/login/"
-# Place the temporary captcha file in the same folder as the exe
-TEMP_IMAGE_FILE: Final[str] = os.path.join(APP_BASE_PATH, "temp_captcha.jpg")
-
 
 # The .exe will look for these files in the *same directory* it is in.
 CREDENTIALS_EXCEL: Final[str] = os.path.join(APP_BASE_PATH, "credentials.xlsx")
@@ -55,7 +52,9 @@ MODAL_XPATHS_RELATIVE: Final[dict[str, str]] = {
     "VOLUME_INPUT": "./app-order-modal/div[2]/div/div[2]/div/div/div[2]/div[1]/div/div[1]/input",
     "PRICE_INPUT": "./app-order-modal/div[2]/div/div[2]/div/div/div[2]/div[1]/div/div[2]/div/input",
     "DRAFT_SELECTION": './app-order-modal/div[2]/div/div[2]/div/div/div[4]/div/div/input',
-    "DRAFT_BUTTON": './app-order-modal/div[2]/div/div[2]/div/div/div[4]/button/span'
+    "DRAFT_BUTTON": './app-order-modal/div[2]/div/div[2]/div/div/div[4]/button/span',
+    
+    "SEARCH_RESULT_DIV": "./app-order-modal/div[1]/div[1]/div/div/div/div/app-instrument-search/div/div"
 
 }
 
