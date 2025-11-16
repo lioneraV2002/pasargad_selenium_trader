@@ -123,31 +123,44 @@ class StockTrader:
             self.driver.find_element(By.XPATH, LOGIN_BUTTON_XPATH).click()
             log("Attempted login. Waiting for dashboard load (10s)...")
             
-            # wait for the page to redirect to dashboard.
-            time.sleep(10)
+            # Wait 20 seconds ONLY for the main dashboard button
+            wait = WebDriverWait(self.driver, 20)
+            wait.until(
+                EC.presence_of_element_located((By.XPATH, OPEN_MODAL_BUTTON_XPATH))
+            )
             
-            # TEST IF LOGGED IN
-            self.driver.find_element(By.XPATH, OPEN_MODAL_BUTTON_XPATH)
-            
-            
+            # If we get here, the button was found. Login is successful.
+            log("Dashboard loaded successfully.", self.log_tag)
             return True
 
-        except NoSuchElementException:
-            log("Login failed: Dashboard elements not found after attempt. Check credentials/CAPTCHA/URL.", is_error=True)
-            return False
+        except TimeoutException:
+            # This catches if the dashboard button *didn't* appear in 20 seconds.
+            # NOW we check if the password modal is the reason.
+            log("Dashboard button not found. Checking for password modal...", self.log_tag)
+            
+            try:
+                self.check_and_close_password_modal()
+                # We still return True, as the login was successful, just blocked by the modal.
+                return True
+                
+            except TimeoutException:
+                # If we get *here*, the dashboard button failed AND the modal failed.
+                # This is a true login failure.
+                log("Login failed: Neither dashboard nor modal found. Check credentials/CAPTCHA/URL.", self.log_tag, is_error=True)
+                return False
+                
         except Exception as e:
-            log(f"An unexpected error occurred during login: {e}", is_error=True)
+            log(f"An unexpected error occurred during login wait: {e}", self.log_tag, is_error=True)
             return False
-
         
         
     def create_draft(self, trade_data: Dict[str, Any], trade_index: int):
         """Executes a single trade using the established, single driver session."""
         trade_name = f"{trade_data['Name']}-{trade_index}"
-        log(f"Trade execution started.", trade_name)
+        log(f"Trade execution started. Trade name: {trade_name}", self.log_tag)
         
         if not self.driver:
-            log("ERROR: WebDriver not available for trade execution.", trade_name, is_error=True)
+            log("ERROR: WebDriver not available for trade execution. Trade name: {trade_name}", self.log_tag, is_error=True)
             return
 
         try:
@@ -160,27 +173,31 @@ class StockTrader:
             direction = trade_data['Direction']
             direction_xpath_key = "BUY_BUTTON" if direction == "Buy" else "SELL_BUTTON"
             self._find_modal_element(direction_xpath_key).click()
-            log(f"Direction set to: {direction}", trade_name)
+            log(f"Direction set to: {direction}. Trade name: {trade_name}", self.log_tag)
 
             # Search Stock Name and Select
             search_input = self._find_modal_element("SEARCH_INPUT")
             search_input.send_keys(trade_data['Name'])
-            time.sleep(0.5) 
             
+            time.sleep(1)
+            # check if the search result is out
+            self._find_modal_element("SEARCH_RESULT_DIV")
+            log(f"Search result element found. Trade name: {trade_name}", self.log_tag)                        
+        
             search_input.send_keys(Keys.ENTER)
-            log(f"Stock '{trade_data['Name']}' selected.", trade_name)
+            log(f"Stock '{trade_data['Name']}' selected. Trade name: {trade_name}", self.log_tag)
             time.sleep(0.1) 
 
             # Set Volume
             volume = trade_data['Volume']
             if volume == 0:
                 self._find_modal_element("MAX_VOLUME_CLICK").click()
-                log("Volume set to MAX.", trade_name)
+                log("Volume set to MAX. Trade name: {trade_name}", self.log_tag)
             else:
                 volume_input = self._find_modal_element("VOLUME_INPUT")
                 volume_input.clear()
                 volume_input.send_keys(str(volume))
-                log(f"Custom volume entered: {volume}.", trade_name)
+                log(f"Custom volume entered: {volume}. Trade name: {trade_name}", self.log_tag)
             
             time.sleep(0.1) 
             
@@ -188,12 +205,12 @@ class StockTrader:
             price = trade_data['Price']
             if price == 0:
                 self._find_modal_element("LOCK_PRICE_BUTTON").click()
-                log("Price set to Best Bid/Ask.", trade_name)
+                log(f"Price set to Best Bid/Ask. Trade name: {trade_name}", self.log_tag)
             else:
                 price_input = self._find_modal_element("PRICE_INPUT")
                 price_input.clear()
                 price_input.send_keys(str(price))
-                log(f"Custom price entered: {price}.", trade_name)
+                log(f"Custom price entered: {price}. Trade name: {trade_name}", self.log_tag)
 
             time.sleep(0.1)            
 
@@ -203,22 +220,22 @@ class StockTrader:
             time.sleep(0.1) 
             
             self._find_modal_element('DRAFT_BUTTON').click()
-            log(f"Order **Drafted** for {direction} {trade_data['Name']}.", trade_name)
+            log(f"Order **Drafted** for {direction} {trade_data['Name']}. Trade name: {trade_name}", self.log_tag)
             
 
             
         except NoSuchElementException as e:
-            log(f"ERROR: Element missing during trade execution. Error: {e}", trade_name, is_error=True)
+            log(f"ERROR: Element missing during trade execution. Trade name: {trade_name}.\n Error: {e}", self.log_tag, is_error=True)
         except Exception as e:
-            log(f"An unexpected error occurred during trade execution: {e}", trade_name, is_error=True)
+            log(f"An unexpected error occurred during trade execution. Trade name: {trade_name}.\n Error: {e}", self.log_tag, is_error=True)
         finally:
             # Close Modal
             try:
                 self._find_modal_element("CLOSE_MODAL_BUTTON").click()
                 time.sleep(0.1)             
-                log("Modal closed.", trade_name)
+                log(f"Modal closed. Trade name: {trade_name}", self.log_tag)
             except:
-                log("WARNING: Failed to close the modal.", trade_name, is_error=True)
+                log(f"WARNING: Failed to close the modal. Trade name: {trade_name}", self.log_tag, is_error=True)
 
     def execute_drafts(self):
         """
@@ -235,7 +252,7 @@ class StockTrader:
             self.driver.find_element(By.XPATH, DRAFTS_SECTION_TAB).click()
             log("Clicked on drafts section tab.", "SYSTEM")
             
-            time.sleep(0.5)
+            time.sleep(1)
             # Click the Bulk Selection button/element
             # This action is assumed to open the list of drafts AND select them all.
             self.driver.find_element(By.XPATH, BULK_SELECTION_BUTTON).click()
@@ -268,16 +285,16 @@ class StockTrader:
         if it is present by clicking the close button.
         """
         
-        print("\nChecking for Change Password Modal...")
+        log("\nChecking for Change Password Modal...", self.log_tag)
 
         try:
             if self.driver:
                 # Wait up to 1 seconds for the modal element to be present
-                modal_element = WebDriverWait(self.driver, 1).until(
+                WebDriverWait(self.driver, 1).until(
                     EC.presence_of_element_located((By.XPATH, MODAL_XPATH))
                 )
                 
-                print("Modal found. Attempting to close it.")
+                log("Modal found. Attempting to close it.", self.log_tag)
                 
                 try:
                     # Wait up to 5 seconds for the close button to be clickable
@@ -287,23 +304,23 @@ class StockTrader:
                     
                     # Click the close button
                     close_button.click()
-                    print("Successfully clicked the modal close button.")
+                    log("Successfully clicked the modal close button.", self.log_tag)
                     
                     # Optional: Wait for the modal to disappear to confirm closure
                     WebDriverWait(self.driver, 1).until(
                         EC.invisibility_of_element_located((By.XPATH, MODAL_XPATH))
                     )
-                    print("Modal successfully closed and disappeared.")
+                    log("Modal successfully closed and disappeared.", self.log_tag)
                     
                 except TimeoutException:
-                    print("Error: Modal close button was not clickable within 1 seconds.")
+                    log("Error: Modal close button was not clickable within 1 seconds.", self.log_tag, is_error=True)
                 except NoSuchElementException:
-                    print("Error: Modal element was present, but the close button was not found.")
+                    log("Error: Modal element was present, but the close button was not found.", self.log_tag, is_error=True)
                     
         except TimeoutException:
-            print("Modal not found within 1 seconds. Assuming it did not appear or has already been closed.")
+            log("Modal not found within 1 seconds. Assuming it did not appear or has already been closed.", self.log_tag, is_error=True)
         except Exception as e:
-            print(f"An unexpected error occurred during modal check: {e}")
+            log(f"An unexpected error occurred during modal check: {e}", self.log_tag, is_error=True)
     
     
     def run_workflow(self):
@@ -324,7 +341,7 @@ class StockTrader:
         time.sleep(5)
         
         
-        for attempt in range(3):
+        for attempt in range(5):
             if self.login():
                 break
             log(f"Login attempt {attempt + 1} failed. Retrying...", self.log_tag, is_error=True)
@@ -337,8 +354,9 @@ class StockTrader:
         log("Login successful: Dashboard loaded.", self.log_tag)
             
         try:
+            # checking for password change modal
             self.check_and_close_password_modal()
-        
+            
             log("Starting sequential trade draft creation loop.", self.log_tag)
 
             start_time = time.time()
@@ -346,9 +364,13 @@ class StockTrader:
             # Sequential loop replaces the ThreadPoolExecutor
             for i, trade in enumerate(self.trades):
                 log(f"--- Processing Trade {i + 1}/{len(self.trades)}: {trade['Name']} ---", self.log_tag)
+                start_time1 = time.time()
 
                 # Execute the trade and close the modal (all in one session)
                 self.create_draft(trade, i + 1)
+                
+                log(f"Draft creation took: {(time.time() - start_time1):.2f} seconds", self.log_tag)
+
 
             log("All drafts created. Waiting for the market to open.", self.log_tag)
             
