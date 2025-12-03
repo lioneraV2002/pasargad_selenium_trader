@@ -42,30 +42,61 @@ def log(message: str, trade_name: str = "SYSTEM", is_error: bool = False):
 
 
 def setup_webdriver() -> Optional[webdriver.Chrome]:
-    """Initializes and returns a configured Chrome WebDriver."""
-    log("Setting up WebDriver...")
-    try:
-        chrome_options = Options()
-        chrome_options.add_argument("--start-maximized")
-        # Standard optimization arguments
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-logging")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-dev-shm-usage") 
+    log("Setting up Chrome...", "SYSTEM")
+    chrome_options = Options()
+
+    # --- 1. Positioning and Maximization ---
+    # Maximize window (if needed)
+    chrome_options.add_argument("--start-maximized") 
+    
+    # --- 2. THE RESOURCE KILLER: Block Images and Media ---
+    prefs = {
+        # Optional: Block other large assets for maximum RAM savings:
+        "profile.managed_default_content_settings.javascript": 1, # 1: Allow JS (needed for Selenium)
+        "profile.managed_default_content_settings.popups": 2, # Block popups
+        "profile.managed_default_content_settings.plugins": 2, # Block plugins/Flash/etc.
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+
+    # --- 3. Other Core Resource Flags ---
+    chrome_options.add_argument("--disable-gpu") 
+    chrome_options.add_argument("--disable-dev-shm-usage") 
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-extensions") 
+    chrome_options.add_argument("--disable-webrtc")
+    chrome_options.add_argument("--log-level=3") 
+
+    # ... (Service setup and return driver) ...
+    service = ChromeService(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    
+    return driver
+
+# def setup_webdriver() -> Optional[webdriver.Chrome]:
+#     """Initializes and returns a configured Chrome WebDriver."""
+#     log("Setting up WebDriver...")
+#     try:
+#         chrome_options = Options()
+#         chrome_options.add_argument("--start-maximized")
+#         # Standard optimization arguments
+#         chrome_options.add_argument("--disable-gpu")
+#         chrome_options.add_argument("--no-sandbox")
+#         chrome_options.add_argument("--disable-logging")
+#         chrome_options.add_argument("--disable-extensions")
+#         chrome_options.add_argument("--disable-dev-shm-usage") 
         
-        # This line automatically downloads/finds the correct driver
-        # and passes its path to the Service object.
-        service = ChromeService(ChromeDriverManager().install())
+#         # This line automatically downloads/finds the correct driver
+#         # and passes its path to the Service object.
+#         service = ChromeService(ChromeDriverManager().install())
         
-        # Pass the service to the driver
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+#         # Pass the service to the driver
+#         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         
-        return driver
-    except WebDriverException as e:
-        log(f"FATAL WebDriver Setup Error: {e}", is_error=True)
-        return None
+#         return driver
+#     except WebDriverException as e:
+#         log(f"FATAL WebDriver Setup Error: {e}", is_error=True)
+#         return None
 
 # Read all credentials from the first sheet of credentials.xlsx
 def read_credentials() -> List[Dict[str, str]]:
