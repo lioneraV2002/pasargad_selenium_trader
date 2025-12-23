@@ -9,7 +9,7 @@ from utils import log, read_credentials
 from stock_trader import StockTrader 
 
 # Define the maximum number of concurrent processes for both phases
-MAX_PROCESSES = 5
+MAX_PROCESSES = 8
 
 
 def chunk_tasks(tasks: List[Any], num_chunks: int) -> List[List[Any]]:
