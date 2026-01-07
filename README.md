@@ -1,4 +1,4 @@
-# AlgoTrader: Multi-Account Bulk Order Execution Bot for Passargad trading exchange platform
+# Autotrader: Multi-Account Bulk Order Execution Bot for Passargad trading exchange platform
 
 This project automates the multi-account, bulk submission of stock orders to a trading platform using **Selenium** and Python's **`multiprocessing`** for concurrent execution.
 
